@@ -18,29 +18,39 @@ const double EPSILON = 1e-5;
 
 int32_t compute_degrees(const std::string& csv_path, std::vector<int32_t>& out_deg, std::vector<int32_t>& in_deg) {
     std::ifstream file(csv_path);
+    if (!file.is_open()) {
+        std::cerr << "Ошибка: не удалось открыть " << csv_path << std::endl;
+        return 0;
+    }
+
     std::string line;
     std::getline(file, line);
 
     int32_t max_v = 0;
-    std::vector<Edge> temp_edges;
 
     while (std::getline(file, line)) {
         if (line.empty()) continue;
         size_t comma = line.find(',');
         int32_t from = std::stoi(line.substr(0, comma));
         int32_t to = std::stoi(line.substr(comma + 1));
-
         max_v = std::max({ max_v, from, to });
-        temp_edges.push_back({ from, to });
     }
 
     int32_t num_vertices = max_v + 1;
     out_deg.resize(num_vertices, 0);
     in_deg.resize(num_vertices, 0);
 
-    for (const auto& edge : temp_edges) {
-        out_deg[edge.from]++;
-        in_deg[edge.to]++;
+    file.clear();
+    file.seekg(0);
+    std::getline(file, line);
+
+    while (std::getline(file, line)) {
+        if (line.empty()) continue;
+        size_t comma = line.find(',');
+        int32_t from = std::stoi(line.substr(0, comma));
+        int32_t to = std::stoi(line.substr(comma + 1));
+        out_deg[from]++;
+        in_deg[to]++;
     }
     return num_vertices;
 }
