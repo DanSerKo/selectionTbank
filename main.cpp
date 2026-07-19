@@ -12,16 +12,12 @@ struct Edge {
     int32_t to;
 };
 
-const int32_t NUM_THREADS = 16;
-const int32_t MAX_ITER = 50;
+const int32_t NUM_THREADS = 8;
+const int32_t MAX_ITER = 500;
 const double EPSILON = 1e-5;
 
 int32_t compute_degrees(const std::string& csv_path, std::vector<int32_t>& out_deg, std::vector<int32_t>& in_deg) {
     std::ifstream file(csv_path);
-    if (!file.is_open()) {
-        std::cerr << "Ошибка: не удалось открыть " << csv_path << std::endl;
-        return 0;
-    }
 
     std::string line;
     std::getline(file, line);
@@ -31,8 +27,8 @@ int32_t compute_degrees(const std::string& csv_path, std::vector<int32_t>& out_d
     while (std::getline(file, line)) {
         if (line.empty()) continue;
         size_t comma = line.find(',');
-        int32_t from = std::stoi(line.substr(0, comma));
-        int32_t to = std::stoi(line.substr(comma + 1));
+        int32_t from = std::stoi(line.substr(0, comma)) - 1;
+        int32_t to = std::stoi(line.substr(comma + 1)) - 1;
         max_v = std::max({ max_v, from, to });
     }
 
@@ -47,8 +43,8 @@ int32_t compute_degrees(const std::string& csv_path, std::vector<int32_t>& out_d
     while (std::getline(file, line)) {
         if (line.empty()) continue;
         size_t comma = line.find(',');
-        int32_t from = std::stoi(line.substr(0, comma));
-        int32_t to = std::stoi(line.substr(comma + 1));
+        int32_t from = std::stoi(line.substr(0, comma)) - 1;
+        int32_t to = std::stoi(line.substr(comma + 1)) - 1;
         out_deg[from]++;
         in_deg[to]++;
     }
@@ -61,6 +57,7 @@ std::vector<int32_t> Base_Calculate_Boundaries(const std::vector<int32_t>& in_de
 
     int64_t total_edges = std::accumulate(in_deg.begin(), in_deg.end(), 0LL);
     int64_t target_edges_per_batch = total_edges / NUM_THREADS;
+    if (target_edges_per_batch == 0) target_edges_per_batch = 1; 
 
     int64_t current_sum = 0;
     for (int32_t v = 0; v < num_vertices; ++v) {
@@ -70,7 +67,11 @@ std::vector<int32_t> Base_Calculate_Boundaries(const std::vector<int32_t>& in_de
             current_sum = 0;
         }
     }
-    boundaries.push_back(num_vertices);
+
+    while (boundaries.size() < NUM_THREADS + 1) {
+        boundaries.push_back(num_vertices);
+    }
+
     return boundaries;
 }
 
@@ -94,8 +95,8 @@ void shard_edges(const std::string& csv_path, const std::vector<int32_t>& bounda
     while (std::getline(file, line)) {
         if (line.empty()) continue;
         size_t comma = line.find(',');
-        int32_t from = std::stoi(line.substr(0, comma));
-        int32_t to = std::stoi(line.substr(comma + 1));
+        int32_t from = std::stoi(line.substr(0, comma)) - 1;
+        int32_t to = std::stoi(line.substr(comma + 1)) - 1;
 
         int32_t batch_id = vertex_to_batch[to];
         batch_files[batch_id].write(reinterpret_cast<const char*>(&from), sizeof(int32_t));
@@ -160,6 +161,13 @@ void run_leader_rank(int32_t num_vertices, const std::vector<int32_t>& out_deg, 
     for (int32_t v = 0; v < num_vertices; ++v) {
         current_rank[v] += ground_rank / num_vertices;
     }
+
+    std::ofstream outfile("leader_rank_results.csv");
+    outfile << "vertex,rank\n";
+    for (int32_t v = 0; v < num_vertices; ++v) {
+        outfile << (v + 1) << "," << current_rank[v] << "\n";
+    }
+    std::cout << "success\n";
 }
 
 int main() {
